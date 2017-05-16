@@ -129,7 +129,6 @@ J = J + reg_sum;
 %               first time.
 
 % Now we start forward propogation followed by back propogation for each training example
-theta_grad_stack = zeros(1,0);
 for i = 1:m,
 
 	%
@@ -142,9 +141,9 @@ for i = 1:m,
 	% Initialize activation stack with x
 	% Keep pushing activation values on the stack. They would be needed
 	% (in reverse order) during backward propogation.
-	activation_stack = [1, size(x,2), x];  % Start by pushing a0 (input layer) on stack
+	activation_stack{1} = x;  % Start by pushing a0 (input layer) on stack
 	params_out = 0;
-	theta_stack = zeros(1,0);
+	theta_stack = {};
 
 	prev_layer = x;
 	for l = 1:num_hidden_layers+1,
@@ -165,8 +164,7 @@ for i = 1:m,
 
 		%Initialize theta_grad stack to zeros in first iteration 
 		if i == 1,
-			theta_grad = zeros(size(theta));
-			theta_grad_stack = [n_rows, n_cols, theta_grad(:)', theta_grad_stack];
+			theta_grad_stack{l} = zeros(size(theta));
 		end
 
 		params_out = params_out + n_elems;
@@ -176,15 +174,12 @@ for i = 1:m,
 			% Not computing last layer, add bias for next iteration
 			next_layer = [1,next_layer];
 
-			%act_stack = [layer_rows, layer_cols, layer_itself...., act_stack]
-			% Push activation for this layer on to the stack, it will be required (in reverse order)
-			% during backward propogation
-			activation_stack = [size(next_layer,1), size(next_layer,2), next_layer, activation_stack];
+			%activation_stack = [size(next_layer,1), size(next_layer,2), next_layer, activation_stack];
+			activation_stack{l+1} = next_layer;
 		end
 
-		% Keep pushing theta for each layer on the stack
-		% It will be required in reverse order during backward propogation
-		theta_stack = [size(theta,1), size(theta,2), theta(:)', theta_stack];
+		%Store theta for layer l
+		theta_stack{l} = theta;
 	
 		prev_layer = next_layer;
 	end
@@ -201,18 +196,9 @@ for i = 1:m,
 	for l = 1:num_hidden_layers+1,
 		if l != 1,
 
-			% Extract theta (in reverse order) from stack
-			% to compute delta
-			% Push it again at the end (to maintain the reverse order) as it 
-			% will be required again during regularization
-			t_row = theta_stack(1);
-			t_col = theta_stack(2);
-			t_el = t_row * t_col;
-			theta = reshape(theta_stack(3:2+t_el),t_row,t_col);
-			theta_stack = theta_stack(3+t_el:end);
-			theta_stack = [theta_stack, t_row, t_col, theta(:)'];
-
-			delta_prev = (delta_prev * theta) .* act_prev .* (1 - act_prev);
+			% For layer l (from right), we need theta used to compute l+1
+			index = num_hidden_layers+3-l;
+			delta_prev = (delta_prev * theta_stack{index}) .* activation_stack{index} .* (1 - activation_stack{index});
 
 			%Ignore the bias error
 			delta_prev = delta_prev(1,2:end);
@@ -223,45 +209,10 @@ for i = 1:m,
 			delta_prev = output_layer - Y;
 		end
 
-		% Pop activations for the layers (in reverse order)
-		% They are used to compute delta for 1 to L-1 layers and for computing
-		% gradients
-		% No need to push them back as they are not needed further
-		act_prev_rows = activation_stack(1);
-		act_prev_cols = activation_stack(2);
-		act_prev_num_el = act_prev_rows * act_prev_cols;
-		act_prev = reshape(activation_stack(3:2+act_prev_num_el),act_prev_rows,act_prev_cols);
-		activation_stack = activation_stack(3+act_prev_num_el:end);
+		index = num_hidden_layers+2-l;  % Should point to the present layer
+		theta_grad_stack{index} = theta_grad_stack{index} + delta_prev' * activation_stack{index};
 
-		% Gradients were initially set to 0 (during first iteration of forward propogation)
-		% Keep updating them for every training example and keep pushing them at the end 
-		% of the stack for cyclic access through every training iteration.
-		tg_row = theta_grad_stack(1);
-		tg_col = theta_grad_stack(2);
-		theta_num_el = tg_row * tg_col;
-		theta_grad = reshape(theta_grad_stack(3:2+theta_num_el),tg_row,tg_col);
-		theta_grad_stack = theta_grad_stack(3+theta_num_el:end);
-
-
-		theta_grad = theta_grad + delta_prev' * act_prev;
-
-		%Store theta_grad again
-		theta_grad_stack = [theta_grad_stack, tg_row, tg_col, theta_grad(:)'];
 	end
-
-	%deltaL (last layer) did not require thetaL-1
-	%deltal (l=1 to L-1) requires thetal
-	%But delta0 is not computed (input layer error does not make sense)
-	%So theta0 was left out on the stack
-	%Pop it and push it back in the end so that we are left with correct
-	%order of theta on the stack (thetaL-1 thetaL-2 thetaL-3 .... theta0)
-	% This would be needed for regularization below.
-	t_row = theta_stack(1);
-	t_col = theta_stack(2);
-	t_el = t_row * t_col;
-	theta = reshape(theta_stack(3:2+t_el),t_row,t_col);
-	theta_stack = theta_stack(3+t_el:end);
-	theta_stack = [theta_stack, t_row, t_col, theta(:)'];
 
 end
 
@@ -278,26 +229,15 @@ grad = zeros(0,1);
 %
 for l = 1:num_hidden_layers+1,
 
-	% grad = (1/m) * grad
-	tg_row = theta_grad_stack(1);
-	tg_col = theta_grad_stack(2);
-	tg_el = tg_row * tg_col;
-	theta_grad = reshape(theta_grad_stack(3:2+tg_el),tg_row,tg_col);
-	theta_grad = (1/m) * theta_grad;
-	theta_grad_stack = theta_grad_stack(3+tg_el:end);
+	index = num_hidden_layers+2-l;
+	theta_grad_stack{index} = (1/m) * theta_grad_stack{index};
 
 	%Regularize => + (lambda/m)*theta, except for theta0s
-	t_row = theta_stack(1);
-	t_col = theta_stack(2);
-	t_el = t_row * t_col;
-	theta = reshape(theta_stack(3:2+t_el),t_row,t_col);
-	theta_stack = theta_stack(3+t_el:end);
+	theta_stack{index} = theta_stack{index} * (lambda/m);
+	theta_stack{index}(:,1) = zeros(size(theta_stack{index},1),1);
+	theta_grad_stack{index} = theta_grad_stack{index} + theta_stack{index};
 
-	theta = theta * (lambda/m);
-	theta(:,1) = zeros(size(theta,1),1);
-	theta_grad = theta_grad + theta;
-
-	grad = [theta_grad(:) ; grad];
+	grad = [theta_grad_stack{index}(:) ; grad];
 
 end
 
