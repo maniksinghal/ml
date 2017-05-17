@@ -1,8 +1,13 @@
 clear; close all; clc;
 
+
+% Parameters for this code
+CompareFmincgWithManualIterations = 0;
+ComputeNormalEquation = 1;
+
 % Use a test vector X
-X = [0.01 : 0.01 : 5];
-X = X';
+X = [0.01 : 0.01 : 8];   %1xm
+X = X';  %Make it mx1
 
 % y = X^2 + 3
 %y = (X .* X) + 3;
@@ -45,53 +50,76 @@ Xf = (Xf - mean(Xf)) ./ (max(Xf) - min(Xf));
 %    X1 = vector of 1s added to X
 X1 = [ones(size(Xf,1),1), Xf];
 theta = rand(size(X1,2), 1);
-alpha = 1.0;
+
+% -------------------   Compare fmincg with manual iterations for linear regression ----------------
+% Compare the algorithms for manually performing
+% descent and using fmincg
+% Both the algorithms internally call linearCost to compute
+% the cost and gradient for a given X,theta
+fprintf('CompareFmincgWithManualIterations = %d\n', CompareFmincgWithManualIterations); 
+if CompareFmincgWithManualIterations == 1, 
+
+alpha = 1;
 lambda = 0;
 
 %Plot initial X
 plot(X,y);
-fprintf('Initial plot');
+fprintf('Initial plot\nPress any key to continue');
+pause
+
+% Minimize linear cost using manual loop 
+iterations = 1000;
+[J, thetaMin, J_slope] = minimizeLinearCost(X1, theta, y, alpha, lambda, iterations);
+fprintf('theta with manual minimizing loop (cost:%f)\n', J); 
+thetaMin
+fprintf('Press any key to continue\n');
+pause
+
+%Minimize linear cost using fmincg
+options = optimset('GradObj', 'on', 'MaxIter', iterations);
+[thetaMin2] = fmincg(@(t)(linearCost(t, X1, y, 1, lambda)), theta, options);
+fprintf('theta with fmincg\n'); 
+thetaMin2
+fprintf('Press any key to continue\n');
+pause
+
+% Plot comparison of the above two algorithms
+h = X1 * thetaMin;
+hold on;
+plot(X,h);
+fprintf('Plotting with manual minimizing\n');
+fprintf('Press any key to continue\n');
+pause
+h = X1 * thetaMin2;
+plot(X,h);
+fprintf('Plotting with fmincg\n');
+fprintf('Press any key to continue\n');
 pause;
 
-iterations = 100000;
-step_size = iterations / 10; 
-i = 0;
-theta_prev = theta;
-J_prev = 0;
-while i < iterations,
-	[J, grad] = linearCost(theta, X1, y, alpha, lambda);
-	%fprintf('Running iteration %d, cost: %f\n', i, J);
-	if i > 0,
-		if J > J_prev,
-			% We have started to overshoot, stop here
-			break;
-		end
-	end
-
-	J_prev = J;
-	theta_prev = theta;
-
-	theta = theta - grad;
-	i = i + 1;
-
-	if mod(i, step_size) == 0,
-		clf;
-		plot(X,y);
-		hold on;
-		h = X1 * theta;
-		plot(X, h);
-		hold off;
-		pause(0.5);
-	end
-		
+% Conclusion -
+% Manual loop uses far more iterations while learning rate alpha is small (0.05), and 
+% converges faster with alpha = 1
+% fmincg didn't perform well with small alpha, but gave converged to matching results 
+% (as with manual loop) in very less time
 end
 
-fprintf('final theta at iteration %d: \n', i);
-theta
 
-clf;
+%----------------------------------------- Minimize using Normal equation method -------------------
+fprintf('ComputeNormalEquation = %d\n', ComputeNormalEquation); 
+if ComputeNormalEquation == 1, 
 plot(X,y);
 hold on;
-h = X1 * theta;
-plot(X,h);
+fprintf('Initial plot\nPress any key to continue');
+pause;
+thetaMin = (inv(X1' * X1) * X1') * y;
+fprintf('thetaMin\n');
+thetaMin
+h = X1 * thetaMin;
+plot(X, h);
 hold off;
+fprintf('Plot with normal equation\nPress any key to continue');
+pause
+
+% Conclusion -
+% Looks good, as number of features are very small
+end
