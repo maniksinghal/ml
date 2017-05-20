@@ -1,4 +1,4 @@
-function [J, grad] = linearCost(theta, X, y, alpha, lambda)
+function [J, grad] = logisticRegression(theta, X, y, alpha, lambda)
 % Function parameters:
 % X      => mxn matrix with m training examples and n features
 %          First column of X should be 1
@@ -40,11 +40,16 @@ end
 % Validations complete
 
 % Calculate hypothesis
-h = X * theta; 
+% For logistic regression, its a sigmoid function
+% h = g(z)
+%   => where z = X*theta
+%   => g(z) = 1 / (1 +e^(-z))
+z = X * theta;
+h = 1 ./ (1 + exp(-z));
 
 % Calculate cost
-% J = 1/m * SUM ((h(x) - y)^2) + (lambda/m) * SUM [theta .* theta]
-J = (1/m) * sum( (h - y) .^ 2);
+% J = 1/m (-y'log(h) - (1-y)'log(1-h))
+J = (-1/m) * ((y' * log(h)) + ((1 - y)' * log(1-h)));
 
 % Regularize J => + (lambda/m) * (sum(theta^2) => not counting theta0)
 J = J + ((lambda/m) * sum(theta .* theta));
