@@ -317,6 +317,13 @@ pause
 end
 
 
+% EXPERIMENT: Not much difference by changing number of iterations from
+% 10K to 50K
+lambda = 0;
+alpha = 0.5;
+iterations = 4000;
+
+
 % Add more features to X to make it a polynomial equation
 % Tried different combinations but algorithm did not converge
 % very accurately
@@ -324,9 +331,9 @@ end
 X = [X, X(:,1) .* X(:,1)];   %[x1, x2, x1^2]
 X = [X, X(:,2) .* X(:,2)];   %[x1, x2, x1^2, x2^2]
 %X = [X, X(:,1) .* X(:,1) .* X(:,1)];   %[x1, x2, x1^2, x2^2, x1^3]
-X = [X, log(X(:,1))];   % X = [x, x^2, x^3, log(x1)]
-X = [X, 1 ./ X(:,1)];   % X = [x, x^2, x^3, log(x1), 1/x1]
-X = [X, 1 ./ (X .* X)];   % X = [x, x^2, x^3, log(x), 1/x, 1/x^2]
+%X = [X, log(X(:,1))];   % X = [x, x^2, x^3, log(x1)]
+%X = [X, 1 ./ X(:,1)];   % X = [x, x^2, x^3, log(x1), 1/x1]
+%X = [X, 1 ./ (X .* X)];   % X = [x, x^2, x^3, log(x), 1/x, 1/x^2]
 
 
 %Perform feature scaling
@@ -352,16 +359,9 @@ n = n + 1;
 
 theta = zeros(n,K);  %Store theta for each classification in separate column
 
-% EXPERIMENT: Not much difference by changing number of iterations from
-% 10K to 50K
-lambda = 0;
-alpha = 1;
-iterations = 10000;
-
-
 % Trying fminunc
 %  Set options for fminunc
-options = optimset('GradObj', 'on', 'MaxIter', 400);
+options = optimset('GradObj', 'on', 'MaxIter', iterations);
 
 %Run fminunc K times and get theta for each
 for k = 1:K,
@@ -410,5 +410,4 @@ end
 end
 
 
-close
 close
